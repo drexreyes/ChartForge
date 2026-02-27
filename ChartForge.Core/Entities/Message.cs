@@ -1,5 +1,4 @@
 ﻿using ChartForge.Core.Enums;
-using ChatForge.Core.Entities;
 
 namespace ChartForge.Core.Entities;
 

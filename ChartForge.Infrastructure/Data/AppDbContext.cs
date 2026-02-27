@@ -1,6 +1,5 @@
 ﻿using ChartForge.Core.Entities;
 using ChartForge.Infrastructure.Data.Configuration;
-using ChatForge.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace ChartForge.Infrastructure.Data;

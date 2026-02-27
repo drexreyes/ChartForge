@@ -51,7 +51,7 @@ public class MessageConfiguration : IEntityTypeConfiguration<Message>
             .WithOne(cs => cs.Message)
             .HasForeignKey<Message>(m => m.ChartStateId)
             .IsRequired(false)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.NoAction);
 
     }
 }

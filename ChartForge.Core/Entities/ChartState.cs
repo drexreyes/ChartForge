@@ -1,14 +1,16 @@
 ﻿using ChartForge.Core.Entities;
 using ChartForge.Core.Enums;
 
-namespace ChatForge.Core.Entities;
+namespace ChartForge.Core.Entities;
 
 public class ChartState
 {
     public Guid Id { get; set; }
 
-    // Foreign key to the parent Conversation
-    // Every chart version belongs to exactly one conversation.
+    /// <summary>
+    /// Foreign key to the parent Conversation
+    /// Every chart version belongs to exactly one conversation.
+    /// </summary>
     public Guid ConversationId { get; set; }
 
     // Sequential version number within the conversation (1, 2, 3...)
