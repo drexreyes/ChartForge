@@ -20,9 +20,28 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     )
 );
 
-/// <summary>
-/// HTTP Client for n8n Streaming
-///
-/// </summary>
+builder.Services.AddHttpClient("N8nClient", client =>
+{
+    var webhookUrl = builder.Configuration["N8N:WebhookUrl"];
+    if (!string.IsNullOrWhiteSpace(webhookUrl))
+    {
+        client.BaseAddress = new Uri(webhookUrl);
+    }
+});
 
-builder.Services.AddHttpClient("");
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseAntiforgery();
+
+app.MapRazorComponents<ChartForge.Web.Components.App>()
+    .AddInteractiveServerRenderMode();
+
+app.Run();
