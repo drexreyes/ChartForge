@@ -27,6 +27,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Id)
             .ValueGeneratedNever();
 
+        
+
         // --- Properties ---
         builder.Property(u => u.SsoSubjectId)
             .IsRequired()
