@@ -33,5 +33,14 @@
     <MessageBubble />
 </div>
 @code {
+    [Parameter]
+    public int? ConversationId { get; set; }
 
+    protected override void OnParametersSet()
+    {
+        if(ConversationId.HasValue)
+        {
+            // dito natin ilo-load 'yung chat
+        }
+    }
 }
