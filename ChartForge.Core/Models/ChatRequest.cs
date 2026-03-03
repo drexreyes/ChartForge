@@ -1,4 +1,4 @@
-namespace ChartForge.Core.Entities.Features.Chat;
+namespace ChartForge.Core.Models;
 
 public class ChatRequest
 {
