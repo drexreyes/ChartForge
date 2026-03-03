@@ -1,6 +1,8 @@
 using ChartForge.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using ChartForge.Web.Services;
+using ChartForge.Core.Entities.Features.Chat;
+using ChartForge.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,13 +23,9 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     )
 );
 
-builder.Services.AddHttpClient("N8nClient", client =>
+builder.Services.AddHttpClient<IChatStreamService, N8nChatStreamService>(client =>
 {
-    var webhookUrl = builder.Configuration["N8N:WebhookUrl"];
-    if (!string.IsNullOrWhiteSpace(webhookUrl))
-    {
-        client.BaseAddress = new Uri(webhookUrl);
-    }
+    client.BaseAddress = new Uri(builder.Configuration["N8n:WebhookUri"] ?? "http://localhost:5015");
 });
 
 builder.Services.AddScoped<ChatStateService>();
