@@ -46,4 +46,8 @@ app.UseAntiforgery();
 app.MapRazorComponents<ChartForge.Web.Components.App>()
     .AddInteractiveServerRenderMode();
 
+// loading the NotFound page should typically work without this as long as we have the MapRazorComponents above
+// however, the middleware for IsDevelopment is basically intercepting that so we need to add this redirect
+// i also added the @page directive to the NotFound.razor page to make sure it can be accessed directly as well
+app.MapFallback(() => Results.Redirect("/not-found"));
 app.Run();
