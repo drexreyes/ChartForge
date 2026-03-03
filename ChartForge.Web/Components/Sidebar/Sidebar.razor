@@ -57,20 +57,11 @@
 
 @code {
 
-    [Parameter]
-    public User? CurrentUser { get; set; }
-
-    [Parameter]
-    public List<Conversation> Conversations { get; set; } = new();
-
-    [Parameter]
-    public EventCallback OnNewChat { get; set; }
-
-    [Parameter]
-    public EventCallback<Conversation> OnConversationSelected { get; set; }
-
-    [Parameter]
-    public EventCallback<(int Id, string NewTitle)> OnRename { get; set; }
+    [Parameter] public User? CurrentUser { get; set; }
+    [Parameter] public List<Conversation> Conversations { get; set; } = new();
+    [Parameter] public EventCallback OnNewChat { get; set; }
+    [Parameter] public EventCallback<Conversation> OnConversationSelected { get; set; }
+    [Parameter] public EventCallback<(int Id, string NewTitle)> OnRename { get; set; }
 
     private bool _showSearch = false;
     private string _searchQuery = string.Empty;
