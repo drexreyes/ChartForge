@@ -1,7 +1,5 @@
 ﻿@page "/"
 @page "/c/{ConversationId:int}"
-@using ChartForge.Web.Components.Canvas
-@using ChartForge.Web.Components.Chat
 
 <div class="flex h-full w-full bg-white">
     <section class="flex flex-col w-full lg:w-[30%] xl:w-[25%] h-full border-r border-gray-200 relative">
@@ -24,20 +22,28 @@
             <ChartForge.Web.Components.Canvas.CanvasHeader />
         </div>
         <div class="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center">
-            <CanvasArea />
+            <ChartForge.Web.Components.Chat.ChatArea />
         </div>
     </section>
 </div>
 
+<div class="flex flex-col max-w-80">
+    <ChatHeader />
+
+    <MessageBubble />
+</div>
 @code {
     [Parameter]
     public int? ConversationId { get; set; }
 
-    protected override void OnParametersSet()
+    protected override async Task OnInitializedAsync()
     {
-        if(ConversationId.HasValue)
-        {
-            // dito natin ilo-load 'yung chat
-        }
+        CurrentUserData = null;
+        ConversationsData = new();
     }
+
+    private void HandleNewChat() { }
+    private void HandleConversationSelected(Conversation conversation) { }
+    private void HandleRename((int Id, string NewTitle) args) { }
+
 }
