@@ -11,7 +11,7 @@
     }
     else
     {
-        @foreach (var message in ChatState.Messages)
+        @foreach (var message in Messages)
         {
             <MessageBubble Message="message" />
         }
@@ -19,6 +19,9 @@
 </div>
 
 @code {
+    [Parameter] public List<Message> Messages { get; set; }
+    
+
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged;

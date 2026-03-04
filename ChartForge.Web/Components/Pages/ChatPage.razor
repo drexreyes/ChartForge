@@ -35,6 +35,7 @@
 @code {
     [Parameter]
     public int? ConversationId { get; set; }
+    private Conversation ActiveConversation => service.ActiveConversation ?? new Conversation();
 
     protected override void OnInitialized()
     {
