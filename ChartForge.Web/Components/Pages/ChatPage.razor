@@ -1,5 +1,8 @@
 ﻿@page "/"
 @page "/c/{ConversationId:int}"
+@inject ChatStateService ChatState
+@implements IDisposable
+
 @using ChartForge.Web.Components.Canvas
 
 <div class="flex h-full w-full bg-white">
@@ -32,12 +35,24 @@
     [Parameter]
     public int? ConversationId { get; set; }
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
+        ChatState.OnChange += HandleStateChanged;
     }
 
-    private void HandleNewChat() { }
-    private void HandleConversationSelected(Conversation conversation) { }
-    private void HandleRename((int Id, string NewTitle) args) { }
+    protected override async Task OnParametersSetAsync()
+    {
+        // fires when ConversationId changes via URL
+        // later: load real messages here
+    }
 
+    private async void HandleStateChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ChatState.OnChange -= HandleStateChanged;
+    }
 }
