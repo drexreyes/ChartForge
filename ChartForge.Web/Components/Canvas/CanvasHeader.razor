@@ -1,4 +1,33 @@
-﻿<h3>CanvasHeader</h3>
+﻿@using ChartForge.Web.Components.Icons
+<!-- CanvasHeader.razor -->
+<div class="flex items-center justify-between p-4 bg-white border-b border-gray-200 w-full">
+    <!-- Left side: Chart title and subtitle -->
+    <div class="flex flex-col">
+        <span class="text-sm text-gray-500">Generated Chart</span>
+        <h2 class="text-lg font-semibold">Chart Title Here</h2>
+        <span class="text-xs text-gray-400">Status Indicator here???</span>
+    </div>
+
+    <!-- Right side: buttons -->
+    <div class="flex items-center gap-2">
+        <!-- Version navigation -->
+        <div class="flex items-center border rounded-lg overflow-hidden text-sm font-medium text-gray-300">
+            <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition">&lt; Prev</button>
+            <span class="px-3 py-1 text-[12px] text-gray-700 bg-gray-100 border-x border-gray-300">Version 2 of 5</span>
+            <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition">Next &gt;</button>
+        </div>
+
+
+        @* share button and fullscreen button(?)  *@
+
+        <!-- Export button -->
+        <button class="px-3 py-1 gap-2 border-2 rounded-lg font-semibold text-[12px] bg-white text-red-500 flex items-center gap-1">
+           @* Export icon *@
+           <ExportIcon />
+            <span>Export</span>
+        </button>
+    </div>
+</div>
 
 @code {
 
