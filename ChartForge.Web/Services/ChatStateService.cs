@@ -51,9 +51,8 @@ namespace ChartForge.Web.Services
             // remove once in production
             if (!Conversations.Any())
                 LoadMockData();
-
         }
-        public Conversation ActiveConversation { get; private set; }
+        public Conversation ActiveConversation { get; private set; } = new Conversation();
         public List<Message> Messages { get; private set; } = new();
         public List<ChartState> ChartStates { get; private set; } = new();
         public ChartState? ActiveChartVersion { get; private set; }

@@ -65,34 +65,35 @@
 
         string fullCode = "";
 
+        var conversation = ActiveConversation;
 
          @* create new user message *@
         Message newUserMessage = new Message {
             Role = MessageRole.User,
             Content = userPrompt,
             SentAtUtc = DateTime.UtcNow,
-            SequenceNumber = ChatState.ActiveConversation.Messages.Count + 1,
-            ConversationId = ChatState.ActiveConversation.Id,
-            Conversation = ChatState.ActiveConversation
+            SequenceNumber = conversation.Messages.Count + 1,
+            ConversationId = conversation.Id,
+            Conversation = conversation
         };
 
         @* create new ai message *@
         Message newAiMessage = new Message {
             Role = MessageRole.Assistant,
             SentAtUtc = DateTime.UtcNow,
-            SequenceNumber = ChatState.ActiveConversation.Messages.Count + 1,
-            ConversationId = ChatState.ActiveConversation.Id,
-            Conversation = ChatState.ActiveConversation
+            SequenceNumber = conversation.Messages.Count + 2,
+            ConversationId = conversation.Id,
+            Conversation = conversation
         };
 
-        ChatState.ActiveConversation.Messages.Add(newUserMessage);
-        ChatState.ActiveConversation.Messages.Add(newAiMessage);
+        conversation.Messages.Add(newUserMessage);
+        conversation.Messages.Add(newAiMessage);
 
         @* make the payload *@
         ChatRequest request = new ChatRequest {
             UserPrompt = userPrompt,
             CurrentChartCode = ChatState.ActiveChartVersion?.ChartSourceCode,
-            History = ChatState.Messages.Select(m => new MessageContext{
+            History = conversation.Messages.Select(m => new MessageContext{
                 Role = m.Role.ToString().ToLower(),
                 Content = m.Content,
             }).ToList(),

@@ -1,31 +1,155 @@
 @using ChartForge.Core.Models
 @using ChartForge.Web.Components.Icons
-@inject ChatStateService service;
+@using Microsoft.AspNetCore.Components.Forms
+@inject IJSRuntime JS
 
-<div class="flex flex-wrap">
-    <SuggestionChips />
-</div>
+@* Attachment preview strip *@
+@if (_attachments.Any())
+{
+    <div class="flex flex-wrap gap-2 mb-2 px-1">
+        @foreach (var attachment in _attachments)
+        {
+            <div class="flex items-center gap-1.5 bg-gray-100 border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-700 max-w-[180px]">
+                @if (attachment.IsImage)
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="text-red-400 shrink-0" viewBox="0 0 16 16">
+                        <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" />
+                        <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z" />
+                    </svg>
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" class="text-gray-400 shrink-0" viewBox="0 0 16 16">
+                        <path d="M4 0h5.293A1 1 0 0 1 10 .293L13.707 4a1 1 0 0 1 .293.707V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2zm5.5 1.5v2a1 1 0 0 0 1 1h2z" />
+                    </svg>
+                }
+                <span class="truncate">@attachment.Name</span>
+                <button type="button" @onclick="() => RemoveAttachment(attachment)"
+                        class="ml-0.5 shrink-0 text-gray-400 hover:text-gray-700 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+                    </svg>
+                </button>
+            </div>
+        }
+    </div>
+}
 
-<EditForm Model="@newChat" OnValidSubmit="SendRequest">
-    <div class="flex items-center justify-between border-2 text-sm px-4 border-gray-200 bg-gray-50 rounded-lg">
-        <div class="flex w-full items-center gap-2">
-            <ClipIcon />
-            <InputText @bind-Value="newChat.Content" class="py-2 w-full" placeholder="Describe the chart you want" />
+<EditForm Model="@_newChat" OnValidSubmit="SendRequest">
+    <div class="flex flex-col border-2 border-gray-200 bg-gray-50 focus-within:border-gray-300 focus-within:bg-white rounded-xl transition-colors">
+
+        @* Text input row *@
+        <div class="flex items-center gap-2 px-3 py-2">
+            <InputText @bind-Value="_newChat.Content"
+                       @onkeydown="HandleKeyDown"
+                       class="flex-1 bg-transparent text-sm outline-none placeholder-gray-400 text-gray-800 resize-none"
+                       placeholder="Describe the chart you want..." />
         </div>
-        <button type="submit" class="cursor-pointer">
-            <SendIcon />
-        </button>
+
+        @* Toolbar row *@
+        <div class="flex items-center justify-between px-3 pb-2.5 pt-0.5">
+            <div class="flex items-center gap-1">
+                @* File attachment button *@
+                <button type="button"
+                        @onclick="TriggerFileInput"
+                        title="Attach file"
+                        class="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0z" />
+                    </svg>
+                </button>
+
+                @* Image attachment button *@
+                <button type="button"
+                        @onclick="TriggerImageInput"
+                        title="Attach image"
+                        class="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" />
+                        <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z" />
+                    </svg>
+                </button>
+
+                @* Suggestion chips toggle (mobile-friendly) *@
+                <div class="hidden sm:flex flex-wrap gap-1 ml-1">
+                    <SuggestionChips />
+                </div>
+            </div>
+
+            @* Send button *@
+            <button type="submit"
+                    disabled="@(string.IsNullOrWhiteSpace(_newChat.Content) && !_attachments.Any())"
+                    class="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors">
+                <SendIcon />
+            </button>
+        </div>
     </div>
 </EditForm>
 
+@* Hidden file inputs *@
+<InputFile id="fileInput" OnChange="OnFilesSelected" multiple class="hidden" />
+<InputFile id="imageInput" OnChange="OnImagesSelected" multiple accept="image/*" class="hidden" />
+
 @code {
     [Parameter] public EventCallback<string> OnSend { get; set; }
-    private MessageContext newChat = new MessageContext { Role = "user" };
-    private async Task SendRequest() {
-        if (!string.IsNullOrWhiteSpace(newChat.Content)) {
-            await OnSend.InvokeAsync(newChat.Content);
-            newChat.Content = "";
+
+    private MessageContext _newChat = new MessageContext { Role = "user" };
+    private List<AttachmentPreview> _attachments = new();
+
+    private record AttachmentPreview(string Name, bool IsImage, IBrowserFile File);
+
+    private async Task SendRequest()
+    {
+        if (!string.IsNullOrWhiteSpace(_newChat.Content) || _attachments.Any())
+        {
+            await OnSend.InvokeAsync(_newChat.Content);
+            _newChat.Content = "";
+            _attachments.Clear();
         }
     }
 
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendRequest();
+        }
+    }
+
+    private async Task TriggerFileInput()
+    {
+        await JS.InvokeVoidAsync("document.getElementById('fileInput').click");
+    }
+
+    private async Task TriggerImageInput()
+    {
+        await JS.InvokeVoidAsync("document.getElementById('imageInput').click");
+    }
+
+    private void OnFilesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (IBrowserFile file in e.GetMultipleFiles(10))
+        {
+            if (!_attachments.Any(a => a.Name == file.Name))
+                _attachments.Add(new AttachmentPreview(file.Name, IsImageFile(file.Name), file));
+        }
+    }
+
+    private void OnImagesSelected(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            if (!_attachments.Any(a => a.Name == file.Name))
+                _attachments.Add(new AttachmentPreview(file.Name, true, file));
+        }
+    }
+
+    private void RemoveAttachment(AttachmentPreview attachment) =>
+        _attachments.Remove(attachment);
+
+    private static bool IsImageFile(string name)
+    {
+        string? ext = Path.GetExtension(name).ToLowerInvariant();
+        return ext is ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".svg";
+    }
 }
