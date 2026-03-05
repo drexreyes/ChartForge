@@ -25,7 +25,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 
 builder.Services.AddHttpClient<IChatStreamService, N8nChatStreamService>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["N8n:WebhookUri"] ?? "http://localhost:5015");
+    client.BaseAddress = new Uri(builder.Configuration["N8N:WebhookUrl"] ?? "http://localhost:5015");
 });
 
 builder.Services.AddScoped<ChatStateService>();

@@ -1,11 +1,12 @@
 ﻿@page "/"
 @page "/c/{ConversationId:int}"
 @inject ChatStateService ChatState
+@inject IChatStreamService ChatStreamService
 @implements IDisposable
 
+@using ChartForge.Core.Interfaces
 @using ChartForge.Core.Models
 @using ChartForge.Web.Components.Canvas
-@inject ChatStateService service;
 
 <div class="flex h-full w-full bg-white">
     <section class="flex flex-col w-full lg:w-[30%] xl:w-[25%] h-full border-r border-gray-200 relative">
@@ -36,7 +37,8 @@
 @code {
     [Parameter]
     public int? ConversationId { get; set; }
-    private Conversation ActiveConversation => service.ActiveConversation ?? new Conversation();
+    private Conversation ActiveConversation => ChatState.ActiveConversation ?? new Conversation();
+    private CancellationTokenSource? cts;
 
     protected override void OnInitialized()
     {
@@ -55,23 +57,42 @@
     }
 
     public async Task HandleSendMessage(string userPrompt) {
+        cts = new CancellationTokenSource();
+        CancellationToken token = cts.Token;
+
+        int batchSize = 10;
+        int batchCount = 0;
+
+        string fullCode = "";
+
+
          @* create new user message *@
         Message newUserMessage = new Message {
             Role = MessageRole.User,
             Content = userPrompt,
             SentAtUtc = DateTime.UtcNow,
-            SequenceNumber = service.Messages.Count + 1,
-            ConversationId = service.ActiveConversation.Id,
-            Conversation = service.ActiveConversation
+            SequenceNumber = ChatState.ActiveConversation.Messages.Count + 1,
+            ConversationId = ChatState.ActiveConversation.Id,
+            Conversation = ChatState.ActiveConversation
         };
 
-        service.ActiveConversation.Messages.Add(newUserMessage);
+        @* create new ai message *@
+        Message newAiMessage = new Message {
+            Role = MessageRole.Assistant,
+            SentAtUtc = DateTime.UtcNow,
+            SequenceNumber = ChatState.ActiveConversation.Messages.Count + 1,
+            ConversationId = ChatState.ActiveConversation.Id,
+            Conversation = ChatState.ActiveConversation
+        };
+
+        ChatState.ActiveConversation.Messages.Add(newUserMessage);
+        ChatState.ActiveConversation.Messages.Add(newAiMessage);
 
         @* make the payload *@
-        ChatRequest payload = new ChatRequest {
+        ChatRequest request = new ChatRequest {
             UserPrompt = userPrompt,
-            CurrentChartCode = service.ActiveChartVersion?.ChartSourceCode,
-            History = service.Messages.Select(m => new MessageContext{
+            CurrentChartCode = ChatState.ActiveChartVersion?.ChartSourceCode,
+            History = ChatState.Messages.Select(m => new MessageContext{
                 Role = m.Role.ToString().ToLower(),
                 Content = m.Content,
             }).ToList(),
@@ -79,11 +100,50 @@
         };
 
 
-        // send to n8n
-
         // loop the stream
+        await foreach (StreamResult chunk in ChatStreamService.StreamChatAsync(request, token)) {
+            batchCount++;
 
-        // send ai message back
+            if (chunk.AssistantChunk is not null) {
+                // TODO: maybe change this to string builder in the future to optimize memory
+                newAiMessage.Content += chunk.AssistantChunk;
+            }
+
+            if (chunk.FinalChartCode is not null) {
+                fullCode = chunk.FinalChartCode;
+
+                // TODO: do something with chart version here maybe??
+
+                // extract the code
+                int codeStartIndex = fullCode.IndexOf("```javascript");
+                if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```js");
+                if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```");
+
+                int startOfActualCode = fullCode.IndexOf('\n', codeStartIndex);
+                if (startOfActualCode == -1) startOfActualCode = codeStartIndex + 3; // Fallback if no newline
+                else startOfActualCode += 1; // skip the newline itself
+
+                int codeEndIndex = fullCode.IndexOf("```", startOfActualCode);
+
+                if (codeEndIndex == -1) {
+                    // TODO: do something if theres no ending backticks
+                } else {
+                    fullCode = fullCode.Substring(startOfActualCode, codeEndIndex - startOfActualCode).Trim();
+                }
+                // just display the code for now (testing)
+                Console.WriteLine(fullCode);
+            }
+
+            if (batchCount >= batchSize) {
+                batchCount = 0;
+                StateHasChanged();
+            }
+
+           
+        }
+
+        // get the code from the stream
+
     }
 
     public void Dispose()

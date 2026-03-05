@@ -8,3 +8,9 @@ public class ChatRequest
     public IReadOnlyList<MessageContext> History { get; set; }
     public string DataSchema { get; set; }
 }
+
+public class StreamResult
+{
+    public string? AssistantChunk { get; set; }
+    public string? FinalChartCode { get; set; }
+}
