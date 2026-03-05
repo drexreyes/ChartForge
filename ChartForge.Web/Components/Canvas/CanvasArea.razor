@@ -1,7 +1,18 @@
-﻿<h3>CanvasArea</h3>
-
+﻿
 @* chart display, export, etc. *@
+@if (ActiveConversation.ChartStates.Count > 0) {
+     <div class="card-body">
+            <div id="container" class="chart-container"></div>
+            <div id="chartCanvasContainer" class="chart-container" style="position: relative; display:none;">
+            <canvas id="chartCanvas"></canvas>
+        </div>
+    </div>
+} else {
+    <EmptyCanvasState />
+}
 
 @code {
+    [Parameter]
+    public Conversation ActiveConversation { get; set; }
 
 }

@@ -2,6 +2,7 @@
 @page "/c/{ConversationId:int}"
 @inject ChatStateService ChatState
 @inject IChatStreamService ChatStreamService
+@inject IJSRuntime JS;
 @implements IDisposable
 
 @using ChartForge.Core.Interfaces
@@ -29,7 +30,7 @@
             <ChartForge.Web.Components.Canvas.CanvasHeader />
         </div>
         <div class="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center">
-            <CanvasArea />
+            <CanvasArea ActiveConversation="ActiveConversation"/>
         </div>
     </section>
 </div>
@@ -131,7 +132,11 @@
                     fullCode = fullCode.Substring(startOfActualCode, codeEndIndex - startOfActualCode).Trim();
                 }
                 // just display the code for now (testing)
-                Console.WriteLine(fullCode);
+                @* Console.WriteLine(fullCode); *@
+
+                @* put here the invoke javascript thing *@
+                @* pass 'fullCode' to the function *@
+
             }
 
             if (batchCount >= batchSize) {
