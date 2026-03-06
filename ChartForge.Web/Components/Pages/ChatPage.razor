@@ -15,7 +15,7 @@
        <div class="flex-shrink-0">
            <ChartForge.Web.Components.Chat.ChatHeader />
        </div>
-       <div class="flex-1 overflow-y-auto scroll-smooth p-4">
+       <div @ref="_messageScrollContainer" class="flex-1 overflow-y-auto scroll-smooth p-4">
             <ChartForge.Web.Components.Chat.Chat Messages="ActiveConversation.Messages?.ToList()" />
        </div>
        <div class="flex-shrink-0 p-4 bg-white relative border-t-1 border-gray-200">
@@ -41,7 +41,8 @@
     public int? ConversationId { get; set; }
     private Conversation ActiveConversation => ChatState.ActiveConversation;
     private CancellationTokenSource? cts;
-
+    private IJSObjectReference? _jsModule;
+    private ElementReference _messageScrollContainer;
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged;
@@ -49,13 +50,27 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // fires when ConversationId changes via URL
-        // later: load real messages here
+        if (ConversationId.HasValue)
+        {
+            Conversation? conversation = ChatState.Conversations.FirstOrDefault(c => c.Id == ConversationId.Value);
+            if (conversation is not null && ChatState.ActiveConversation?.Id != conversation.Id)
+            {
+                ChatState.LoadConversation(conversation);
+            }
+        }
     }
 
     private async void HandleStateChanged()
     {
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ScrollToBottom()
+    {
+        if (_jsModule is not null)
+        {
+            await _jsModule.InvokeVoidAsync(identifier: "scrollToBottom", _messageScrollContainer);
+        }
     }
 
     public async Task HandleSendMessage(string userPrompt) {
@@ -67,7 +82,7 @@
 
         string fullCode = "";
 
-        var conversation = ActiveConversation;
+        Conversation? conversation = ActiveConversation;
 
          @* create new user message *@
         Message newUserMessage = new Message {
@@ -92,6 +107,12 @@
         ChatState.StartStreaming(newAiMessage);
         @* conversation.Messages.Add(newUserMessage);
         conversation.Messages.Add(newAiMessage); *@
+        await ScrollToBottom();
+
+        if (ChatState.IsNewUnsavedConversation)
+        {
+            ChatState.AddConversationToList(userPrompt);
+        }
 
         @* make the payload *@
         ChatRequest request = new ChatRequest {
@@ -104,61 +125,81 @@
             DataSchema = ""
         };
 
-        var aiMsg = new StringBuilder();
+        StringBuilder? aiMsg = new StringBuilder();
 
+        try
+        {
+            await foreach (StreamResult chunk in ChatStreamService.StreamChatAsync(request, token))
+            {
+                batchCount++;
 
-        // loop the stream
-        await foreach (StreamResult chunk in ChatStreamService.StreamChatAsync(request, token)) {
-            batchCount++;
-
-            if (chunk.AssistantChunk is not null) {
-                // TODO: maybe change this to string builder in the future to optimize memory
-                aiMsg.Append(chunk.AssistantChunk);
-                newAiMessage.Content = aiMsg.ToString();
-            }
-
-            if (chunk.FinalChartCode is not null) {
-                fullCode = chunk.FinalChartCode;
-
-
-                // extract the code
-                int codeStartIndex = fullCode.IndexOf("```javascript");
-                if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```js");
-                if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```");
-
-                if (codeStartIndex != -1)
+                if (chunk.AssistantChunk is not null)
                 {
-                    int startOfActualCode = fullCode.IndexOf('\n', codeStartIndex);
-                    if (startOfActualCode == -1) startOfActualCode = codeStartIndex + 3; // Fallback if no newline
-                    else startOfActualCode += 1; // skip the newline itself
-
-                    int codeEndIndex = fullCode.IndexOf("```", startOfActualCode);
-
-                    if (codeEndIndex == -1) {
-                        // TODO: do something if theres no ending backticks
-                    } else {
-                        fullCode = fullCode.Substring(startOfActualCode, codeEndIndex - startOfActualCode).Trim();
-                    }
+                    // TODO: maybe change this to string builder in the future to optimize memory
+                    aiMsg.Append(chunk.AssistantChunk);
+                    newAiMessage.Content = aiMsg.ToString();
                 }
 
-                // add a new chart state for chart versioning
-                var newVersion = new ChartState
+                if (chunk.FinalChartCode is not null)
                 {
-                    VersionNumber = conversation.ChartStates.Count + 1,
-                    ChartSourceCode = fullCode,
-                    CreatedAtUtc = DateTime.UtcNow,
-                    ConversationId = conversation.Id,
-                    VersionLabel = $"Version {conversation.ChartStates.Count + 1}"
-                };
-                ChatState.CompleteStreaming(newVersion);
+                    fullCode = chunk.FinalChartCode;
 
+
+                    // extract the code
+                    int codeStartIndex = fullCode.IndexOf("```javascript");
+                    if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```js");
+                    if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```");
+
+                    if (codeStartIndex != -1)
+                    {
+                        int startOfActualCode = fullCode.IndexOf('\n', codeStartIndex);
+                        if (startOfActualCode == -1) startOfActualCode = codeStartIndex + 3; // Fallback if no newline
+                        else startOfActualCode += 1; // skip the newline itself
+
+                        int codeEndIndex = fullCode.IndexOf("```", startOfActualCode);
+
+                        if (codeEndIndex == -1)
+                        {
+                            fullCode = fullCode.Substring(startOfActualCode).Trim();
+                        }
+                        else
+                        {
+                            fullCode = fullCode.Substring(startOfActualCode, codeEndIndex - startOfActualCode).Trim();
+                        }
+                    }
+
+                    // add a new chart state for chart versioning
+                    var newVersion = new ChartState
+                    {
+                        VersionNumber = conversation.ChartStates.Count + 1,
+                        ChartSourceCode = fullCode,
+                        CreatedAtUtc = DateTime.UtcNow,
+                        ConversationId = conversation.Id,
+                        VersionLabel = $"Version {conversation.ChartStates.Count + 1}"
+                    };
+                    ChatState.CompleteStreaming(newVersion);
+
+                }
+
+                if (batchCount >= batchSize)
+                {
+                    batchCount = 0;
+                    StateHasChanged();
+                    await ScrollToBottom();
+                }
             }
-
-            if (batchCount >= batchSize) {
-                batchCount = 0;
-                StateHasChanged();
+            if(ChatState.IsStreaming)
+            {
+                ChatState.CompleteStreaming(newVersion: null);
             }
         }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(value: $"Streaming error: {ex.Message}");
+            ChatState.FailStreaming();
+        }
+        // loop the stream
+        
         StateHasChanged();
     }
 
