@@ -7,7 +7,7 @@
     <!-- Left side: Chart title and subtitle -->
     <div class="flex flex-col">
         <span class="text-sm text-gray-500">Generated Chart</span>
-        <h2 class="text-lg font-semibold">Chart Title Here</h2>
+        <h2 class="text-lg font-semibold">@(ChatState.ActiveConversation?.Title ?? "Generated Chart")</h2>
         <span class="text-xs text-gray-400">Status Indicator here???</span>
     </div>
 
