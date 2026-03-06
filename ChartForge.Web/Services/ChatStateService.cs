@@ -95,11 +95,12 @@ namespace ChartForge.Web.Services
             Notify();
         }
 
-        public void StartStreaming(Message userMessage)
+        public void StartStreaming(Message message)
         {
-            Messages.Add(userMessage);
+            Messages.Add(message);
+            ActiveConversation.Messages.Add(message);
             IsStreaming = true;
-            Notify();
+            // Notify();
         }
 
         public void CompleteStreaming(ChartState? newVersion)
@@ -108,7 +109,9 @@ namespace ChartForge.Web.Services
 
             if (newVersion is not null)
             {
+                // ALWAYS keep the list here in service and the active convo IN SYNC
                 ChartStates.Add(newVersion);
+                ActiveConversation.ChartStates.Add(newVersion);
                 ActiveChartVersion = newVersion;
             }
 

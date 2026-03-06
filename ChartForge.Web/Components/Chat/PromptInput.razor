@@ -2,6 +2,7 @@
 @using ChartForge.Web.Components.Icons
 @using Microsoft.AspNetCore.Components.Forms
 @inject IJSRuntime JS
+@inject ChatStateService ChatState;
 
 @* Attachment preview strip *@
 @if (_attachments.Any())
@@ -78,7 +79,7 @@
 
             @* Send button *@
             <button type="submit"
-                    disabled="@(string.IsNullOrWhiteSpace(_newChat.Content) && !_attachments.Any())"
+                    disabled="@((string.IsNullOrWhiteSpace(_newChat.Content) && !_attachments.Any()) || IsStreaming)"
                     class="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors">
                 <SendIcon />
             </button>
@@ -92,6 +93,8 @@
 
 @code {
     [Parameter] public EventCallback<string> OnSend { get; set; }
+    
+    private bool IsStreaming => ChatState.IsStreaming;
 
     private MessageContext _newChat = new MessageContext { Role = "user" };
     private List<AttachmentPreview> _attachments = new();
@@ -102,8 +105,9 @@
     {
         if (!string.IsNullOrWhiteSpace(_newChat.Content) || _attachments.Any())
         {
-            await OnSend.InvokeAsync(_newChat.Content);
+            string userPrompt = _newChat.Content;
             _newChat.Content = "";
+            await OnSend.InvokeAsync(userPrompt);
             _attachments.Clear();
         }
     }

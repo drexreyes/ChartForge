@@ -17,12 +17,12 @@
         @if (ChatState.TotalVersions > 0)
         {
             <div class="flex items-center border rounded-lg overflow-hidden text-sm font-medium text-gray-300">
-                <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50 disabeld:cursor-not-allowed"
+                <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled="@(!ChatState.CanGoPrev)"
                         @onclick="GoPrev">&lt; Prev
                  </button>
                  <VersionLabel CurrentVersion="@(ChatState.ActiveChartVersion?.VersionNumber ?? 0)" TotalVersions="@ChatState.TotalVersions" />
-                <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50 disabeld:cursor-not-allowed"
+                <button class="px-3 py-1 text-[12px] font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled="@(!ChatState.CanGoNext)"
                         @onclick="GoNext">Next &gt;
                         
@@ -63,7 +63,9 @@
     {
         if (!ChatState.CanGoNext) return;
         var next = ChatState.ChartStates.FirstOrDefault(v => v.VersionNumber == ChatState.ActiveChartVersion!.VersionNumber + 1);
-        if (next is not null) ChatState.SetActiveVersion(next);
+        if (next is not null)  {
+            ChatState.SetActiveVersion(next);
+        }
     }
 
     public void Dispose()

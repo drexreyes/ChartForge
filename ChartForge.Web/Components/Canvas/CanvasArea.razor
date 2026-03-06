@@ -2,16 +2,15 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-@if (ChatState.ChartStates.Count > 0) {
-     <div class="card-body w-full h-full">
-            <div id="container" class="chart-container w-full h-full"></div>
-        <div id="chartCanvasContainer" class="chart-container w-full h-full" style="position: relative; display:none;">
-            <canvas id="chartCanvas"></canvas>
-        </div>
+<div class="card-body w-full h-full">
+    @if (ChatState.ChartStates.Count <= 0) {
+        <EmptyCanvasState />
+    }
+    <div id="container" class="chart-container w-full h-full"></div>
+    <div id="chartCanvasContainer" class="chart-container w-full h-full" style="position: relative; display:none;">
+        <canvas id="chartCanvas"></canvas>
     </div>
-} else {
-    <EmptyCanvasState />
-}
+</div>
 
 @code {
     [Parameter]
@@ -19,6 +18,7 @@
 
     private IJSObjectReference? chartModule;
     private int lastRenderedVersionNumber = -1;
+    @* private ChartState? activeVersion => ChatState.ActiveChartVersion; *@
 
     protected override void OnInitialized()
     {
@@ -32,18 +32,20 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (chartModule == null && ChatState.ChartStates.Count > 0)
+        if (firstRender) {
+            chartModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/chartInterop.js");
+        }
+        @* if (chartModule == null && ChatState.ChartStates.Count > 0)
         {
             try 
             {
                 chartModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/chartInterop.js");
-                Console.WriteLine("[CanvasArea] JS Module loaded successfully.");
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[CanvasArea] Error loading JS Module: {ex.Message}");
             }
-        }
+        } *@
 
         var activeVersion = ChatState.ActiveChartVersion;
 
@@ -53,7 +55,6 @@
            && !string.IsNullOrWhiteSpace(activeVersion.ChartSourceCode))
         {
             lastRenderedVersionNumber = activeVersion.VersionNumber;
-            @* Console.WriteLine($"[CanvasArea] Rendering version {activeVersion.VersionNumber}"); *@
             var result = await chartModule.InvokeAsync<string>("renderChart", activeVersion.ChartSourceCode);
             if (result != "Success")
             {
@@ -64,7 +65,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        ChatState.OnChange -= HandleStateChanged;
         if (chartModule is not null)
         {
             try

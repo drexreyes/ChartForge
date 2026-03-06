@@ -8,6 +8,7 @@
 @using ChartForge.Core.Interfaces
 @using ChartForge.Core.Models
 @using ChartForge.Web.Components.Canvas
+@using System.Text
 
 <div class="flex h-full w-full bg-white">
     <section class="flex flex-col w-full lg:w-[30%] xl:w-[25%] h-full border-r border-gray-200 relative">
@@ -38,7 +39,7 @@
 @code {
     [Parameter]
     public int? ConversationId { get; set; }
-    private Conversation ActiveConversation => ChatState.ActiveConversation ?? new Conversation();
+    private Conversation ActiveConversation => ChatState.ActiveConversation;
     private CancellationTokenSource? cts;
 
     protected override void OnInitialized()
@@ -87,8 +88,10 @@
             Conversation = conversation
         };
 
-        conversation.Messages.Add(newUserMessage);
-        conversation.Messages.Add(newAiMessage);
+        ChatState.StartStreaming(newUserMessage);
+        ChatState.StartStreaming(newAiMessage);
+        @* conversation.Messages.Add(newUserMessage);
+        conversation.Messages.Add(newAiMessage); *@
 
         @* make the payload *@
         ChatRequest request = new ChatRequest {
@@ -101,6 +104,8 @@
             DataSchema = ""
         };
 
+        var aiMsg = new StringBuilder();
+
 
         // loop the stream
         await foreach (StreamResult chunk in ChatStreamService.StreamChatAsync(request, token)) {
@@ -108,13 +113,13 @@
 
             if (chunk.AssistantChunk is not null) {
                 // TODO: maybe change this to string builder in the future to optimize memory
-                newAiMessage.Content += chunk.AssistantChunk;
+                aiMsg.Append(chunk.AssistantChunk);
+                newAiMessage.Content = aiMsg.ToString();
             }
 
             if (chunk.FinalChartCode is not null) {
                 fullCode = chunk.FinalChartCode;
 
-                // TODO: do something with chart version here maybe??
 
                 // extract the code
                 int codeStartIndex = fullCode.IndexOf("```javascript");
@@ -136,6 +141,7 @@
                     }
                 }
 
+                // add a new chart state for chart versioning
                 var newVersion = new ChartState
                 {
                     VersionNumber = conversation.ChartStates.Count + 1,
@@ -146,38 +152,14 @@
                 };
                 ChatState.CompleteStreaming(newVersion);
 
-                // just display the code for now (testing)
-                @* Console.WriteLine(fullCode); *@
-
-                @* put here the invoke javascript thing *@
-                @* pass 'fullCode' to the function *@
-
-                // var activeVersion = ChatState.ActiveChartVersion;
-                // if (activeVersion is not null
-                //    && activeVersion.VersionNumber != lastRenderedVersionNumber
-                //    && chartModule is not null
-                //    && !string.IsNullOrWhiteSpace(activeVersion.ChartSourceCode))
-                // {
-                //     lastRenderedVersionNumber = activeVersion.VersionNumber;
-                //     var result = await chartModule.InvokeAsync<string>("renderChart", activeVersion.ChartSourceCode);
-                //     if (result == "Success")
-                //     {
-                //         Console.Error.WriteLine($"Error rendering chart: {result}");
-                //     }
-                // }
-
             }
 
             if (batchCount >= batchSize) {
                 batchCount = 0;
                 StateHasChanged();
             }
-
-           
         }
-
         StateHasChanged();
-
     }
 
     public void Dispose()
