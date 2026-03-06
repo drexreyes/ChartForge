@@ -18,11 +18,21 @@
 
     private IJSObjectReference? chartModule;
     private int lastRenderedVersionNumber = -1;
+    private int? _lastConversationId;
     @* private ChartState? activeVersion => ChatState.ActiveChartVersion; *@
 
     protected override void OnInitialized()
     {
         ChatState.OnChange += HandleStateChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if(ActiveConversation?.Id != _lastConversationId)
+        {
+            _lastConversationId = ActiveConversation?.Id;
+            lastRenderedVersionNumber = -1; // Reset to force re-render of chart for new conversation
+        }
     }
 
     private async void HandleStateChanged()

@@ -1,4 +1,11 @@
-﻿export function renderChart(code) {
+﻿export function scrollToBottom(element) {
+    if (element) {
+        element.scrollTop = element.scrollHeight;
+    }
+}
+
+
+export function renderChart(code) {
     // --- 1. Detect Tool Type ---
     let toolType = 'unknown';
     // Check standard prefixes from N8n

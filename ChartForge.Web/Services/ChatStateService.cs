@@ -53,18 +53,22 @@ namespace ChartForge.Web.Services
                 LoadMockData();
         }
         public Conversation ActiveConversation { get; private set; } = new Conversation();
+
+        public bool IsNewUnsavedConversation { get; private set; }
         public List<Message> Messages { get; private set; } = new();
         public List<ChartState> ChartStates { get; private set; } = new();
         public ChartState? ActiveChartVersion { get; private set; }
         public bool IsStreaming { get; private set; }
         //public string StreamingBuffer { get; private set; } = string.Empty;
 
+        private int _tempIdCounter = 0;
+
         public event Action? OnChange;
 
         private void Notify() => OnChange?.Invoke();
 
         public int TotalVersions => ChartStates.Count;
-        public int ActiveVersionNumber => ActiveChartVersion.VersionNumber;
+        public int ActiveVersionNumber => ActiveChartVersion?.VersionNumber ?? 0;
 
         public bool CanGoPrev =>
             ActiveChartVersion is not null && ActiveVersionNumber > 1;
@@ -88,10 +92,28 @@ namespace ChartForge.Web.Services
 
         public void NewConversation()
         {
-            ActiveConversation = new Conversation();
+            _tempIdCounter--;
+            ActiveConversation = new Conversation
+            {
+                Id = _tempIdCounter,
+                Title = "New Conversation",
+                UserId = CurrentUser.Id,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+            };
             Messages = new List<Message>();
             ChartStates = new List<ChartState>();
             ActiveChartVersion = null;
+            IsNewUnsavedConversation = true;
+            Notify();
+        }
+
+        public void AddConversationToList(string title)
+        {
+            ActiveConversation.Title = string.IsNullOrWhiteSpace(title) ? "New Chart" : title.Length > 30 ? title[..30] : title;
+            ActiveConversation.UpdatedAtUtc = DateTime.UtcNow;
+            Conversations.Insert(0, ActiveConversation);
+            IsNewUnsavedConversation = false;
             Notify();
         }
 
