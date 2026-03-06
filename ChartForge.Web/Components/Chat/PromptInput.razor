@@ -101,6 +101,9 @@
 
     private record AttachmentPreview(string Name, bool IsImage, IBrowserFile File);
 
+    /*
+    paki uncomment (?) nalang pag lumabas na yung bug HAHAHAHA
+
     private bool _isSubmitting = false;
 
     private async Task SendRequest()
@@ -111,8 +114,8 @@
         {
             _isSubmitting = true;
             try
-            {
-                string userPrompt = _newChat.Content;
+           {
+               string userPrompt = _newChat.Content;
                 _newChat.Content = "";
                 await OnSend.InvokeAsync(userPrompt);
                 _attachments.Clear();
@@ -122,6 +125,17 @@
                 _isSubmitting = false;
             }
         }
+    }
+    */
+
+    private async Task SendRequest() {
+     if (!string.IsNullOrWhiteSpace(_newChat.Content) || _attachments.Any())
+     {
+        string userPrompt = _newChat.Content;
+        _newChat.Content = "";
+        await OnSend.InvokeAsync(userPrompt);
+        _attachments.Clear();
+     }   
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
