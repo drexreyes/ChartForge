@@ -92,8 +92,10 @@ export function renderChart(code) {
     }
 
     try {
-        // Execute the code
-        eval(code);
+        // Execute the code in a scoped function instead of global eval to limit scope bleed.
+        // 'use strict' prevents the most dangerous dynamic-eval side-effects.
+        const fn = new Function('"use strict";\n' + code);
+        fn();
 
         // --- 4. Post-Render Fixes ---
         // Fix D3 SVG scaling if necessary

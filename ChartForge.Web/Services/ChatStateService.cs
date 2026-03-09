@@ -1,171 +1,180 @@
-﻿using ChartForge.Core.Entities;
+using ChartForge.Core.Entities;
 using ChartForge.Core.Enums;
 
-namespace ChartForge.Web.Services
+namespace ChartForge.Web.Services;
+
+public class ChatStateService
 {
-    public class ChatStateService
+    private readonly IConversationService _conversationService;
+
+    // Initialized lazily via InitializeAsync; placeholders hold UI defaults until then.
+    public User CurrentUser { get; private set; } = new User
     {
-        // Mock Data
-        public User CurrentUser { get; private set; } = new User
+        DisplayName = "Dev User",
+        Email = "dev@chartforge.com",
+        IsActive = true
+    };
+
+    public List<Conversation> Conversations { get; private set; } = new();
+    public bool IsInitialized { get; private set; }
+
+    public ChatStateService(IConversationService conversationService)
+    {
+        _conversationService = conversationService;
+    }
+
+    // ── Initialization ────────────────────────────────────────────────────────
+
+    public async Task InitializeAsync()
+    {
+        if (IsInitialized) return;
+
+        CurrentUser = await _conversationService.GetOrCreateUserAsync(
+            email: "dev@chartforge.com",
+            displayName: "Dev User",
+            ssoSubjectId: "dev-user");
+
+        Conversations = await _conversationService.GetByUserIdAsync(CurrentUser.Id);
+        IsInitialized = true;
+        Notify();
+    }
+
+    // ── Active state ──────────────────────────────────────────────────────────
+
+    public Conversation ActiveConversation { get; private set; } = new Conversation();
+    public bool IsNewUnsavedConversation { get; private set; }
+    public List<Message> Messages { get; private set; } = new();
+    public List<ChartState> ChartStates { get; private set; } = new();
+    public ChartState? ActiveChartVersion { get; private set; }
+    public bool IsStreaming { get; private set; }
+
+    private int _tempIdCounter = 0;
+    private readonly List<Message> _pendingMessages = new();
+
+    public event Action? OnChange;
+    private void Notify() => OnChange?.Invoke();
+
+    public int TotalVersions => ChartStates.Count;
+    public int ActiveVersionNumber => ActiveChartVersion?.VersionNumber ?? 0;
+    public bool CanGoPrev => ActiveChartVersion is not null && ActiveVersionNumber > 1;
+    public bool CanGoNext => ActiveChartVersion is not null && ActiveVersionNumber < TotalVersions;
+
+    // ── Mutations ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Loads a conversation's full data (messages + chart states) from the database.
+    /// </summary>
+    public async Task LoadConversationAsync(Conversation conversation)
+    {
+        var full = await _conversationService.GetByIdAsync(conversation.Id);
+        if (full is null) return;
+
+        ActiveConversation = full;
+        Messages = full.Messages.ToList();
+        ChartStates = full.ChartStates.ToList();
+        ActiveChartVersion = ChartStates.MaxBy(v => v.VersionNumber);
+        IsStreaming = false;
+        _pendingMessages.Clear();
+        Notify();
+    }
+
+    public void NewConversation()
+    {
+        _tempIdCounter--;
+        ActiveConversation = new Conversation
         {
-            Id = 1,
-            DisplayName = "Dev User",
-            Email = "dev@chartforge.com",
-            IsActive = true,
+            Id = _tempIdCounter,
+            Title = "New Conversation",
+            UserId = CurrentUser.Id,
             CreatedAtUtc = DateTime.UtcNow,
-            LastLoginAtUtc = DateTime.UtcNow
+            UpdatedAtUtc = DateTime.UtcNow,
         };
-        public List<Conversation> Conversations { get; private set; } = new();
-        public void LoadMockData()
-        {
-            Conversations = new List<Conversation>
-            {
-                new Conversation { Id = 1, Title = "Monthly Churn Chart", UserId = 1, UpdatedAtUtc = DateTime.UtcNow, Messages = new List<Message>
+        Messages = new List<Message>();
+        ChartStates = new List<ChartState>();
+        ActiveChartVersion = null;
+        IsNewUnsavedConversation = true;
+        _pendingMessages.Clear();
+        Notify();
+    }
+
+    /// <summary>
+    /// Persists the active conversation to the database and inserts it at the top of the list.
+    /// Updates any pending messages to use the real DB-assigned conversation ID.
+    /// </summary>
+    public async Task AddConversationToListAsync(string title)
     {
-        new Message
+        ActiveConversation.Title = string.IsNullOrWhiteSpace(title)
+            ? "New Chart"
+            : title.Length > 30 ? title[..30] : title;
+        ActiveConversation.UpdatedAtUtc = DateTime.UtcNow;
+
+        var saved = await _conversationService.CreateAsync(CurrentUser.Id, ActiveConversation.Title);
+        int realId = saved.Id;
+        ActiveConversation.Id = realId;
+
+        // Patch any pending messages that were created with the temp ID.
+        foreach (var msg in _pendingMessages)
         {
-            Id = 1,
-            Content = "asdasd",
-            Role = MessageRole.User,
-            SentAtUtc = DateTime.UtcNow,
-            SequenceNumber = 1
-        },
-        new Message
-        {
-            Id = 2,
-            Content = "AI response here",
-            Role = MessageRole.Assistant,
-            SentAtUtc = DateTime.UtcNow,
-            SequenceNumber = 2
-        }
-    }},
-                new Conversation { Id = 2, Title = "Sales Pipeline Q3", UserId = 1, UpdatedAtUtc = DateTime.UtcNow.Date.AddDays(-1) },
-                new Conversation { Id = 3, Title = "Revenue Breakdown", UserId = 1, UpdatedAtUtc = DateTime.UtcNow.Date.AddDays(-8) },
-            };
-            Notify();
+            msg.ConversationId = realId;
         }
 
-        // End of Mock Data
-        public ChatStateService()
+        Conversations.Insert(0, ActiveConversation);
+        IsNewUnsavedConversation = false;
+        Notify();
+    }
+
+    /// <summary>Adds a message to the in-memory state and queues it for DB persistence.</summary>
+    public void StartStreaming(Message message)
+    {
+        Messages.Add(message);
+        ActiveConversation.Messages.Add(message);
+        _pendingMessages.Add(message);
+        IsStreaming = true;
+    }
+
+    /// <summary>
+    /// Ends streaming, persists queued messages and the new chart version to the database.
+    /// </summary>
+    public async Task CompleteStreamingAsync(ChartState? newVersion)
+    {
+        IsStreaming = false;
+
+        foreach (var msg in _pendingMessages)
+            await _conversationService.AddMessageAsync(msg);
+        _pendingMessages.Clear();
+
+        if (newVersion is not null)
         {
-            // remove once in production
-            if (!Conversations.Any())
-                LoadMockData();
-        }
-        public Conversation ActiveConversation { get; private set; } = new Conversation();
-
-        public bool IsNewUnsavedConversation { get; private set; }
-        public List<Message> Messages { get; private set; } = new();
-        public List<ChartState> ChartStates { get; private set; } = new();
-        public ChartState? ActiveChartVersion { get; private set; }
-        public bool IsStreaming { get; private set; }
-        //public string StreamingBuffer { get; private set; } = string.Empty;
-
-        private int _tempIdCounter = 0;
-
-        public event Action? OnChange;
-
-        private void Notify() => OnChange?.Invoke();
-
-        public int TotalVersions => ChartStates.Count;
-        public int ActiveVersionNumber => ActiveChartVersion?.VersionNumber ?? 0;
-
-        public bool CanGoPrev =>
-            ActiveChartVersion is not null && ActiveVersionNumber > 1;
-
-        public bool CanGoNext =>
-            ActiveChartVersion is not null && ActiveVersionNumber < TotalVersions;
-
-        // mutations
-
-        public void LoadConversation(Conversation conversation)
-        {
-            ActiveConversation = conversation;
-            Messages = conversation.Messages.ToList();
-            ChartStates = conversation.ChartStates.ToList();
-
-            ActiveChartVersion = ChartStates.MaxBy(v => v.VersionNumber);
-
-            IsStreaming = false;
-            Notify();
+            await _conversationService.AddChartStateAsync(newVersion);
+            ChartStates.Add(newVersion);
+            ActiveConversation.ChartStates.Add(newVersion);
+            ActiveChartVersion = newVersion;
         }
 
-        public void NewConversation()
-        {
-            _tempIdCounter--;
-            ActiveConversation = new Conversation
-            {
-                Id = _tempIdCounter,
-                Title = "New Conversation",
-                UserId = CurrentUser.Id,
-                CreatedAtUtc = DateTime.UtcNow,
-                UpdatedAtUtc = DateTime.UtcNow,
-            };
-            Messages = new List<Message>();
-            ChartStates = new List<ChartState>();
-            ActiveChartVersion = null;
-            IsNewUnsavedConversation = true;
-            Notify();
-        }
+        await _conversationService.UpdateTimestampAsync(ActiveConversation.Id);
+        Notify();
+    }
 
-        public void AddConversationToList(string title)
-        {
-            ActiveConversation.Title = string.IsNullOrWhiteSpace(title) ? "New Chart" : title.Length > 30 ? title[..30] : title;
-            ActiveConversation.UpdatedAtUtc = DateTime.UtcNow;
-            Conversations.Insert(0, ActiveConversation);
-            IsNewUnsavedConversation = false;
-            Notify();
-        }
+    public void FailStreaming()
+    {
+        IsStreaming = false;
+        _pendingMessages.Clear();
+        Notify();
+    }
 
-        public void StartStreaming(Message message)
-        {
-            Messages.Add(message);
-            ActiveConversation.Messages.Add(message);
-            IsStreaming = true;
-            // Notify();
-        }
+    public void SetActiveVersion(ChartState version)
+    {
+        ActiveChartVersion = version;
+        Notify();
+    }
 
-        public void CompleteStreaming(ChartState? newVersion)
-        {
-            IsStreaming = false;
+    public async Task RenameConversationAsync(int id, string newTitle)
+    {
+        var conversation = Conversations.FirstOrDefault(c => c.Id == id);
+        if (conversation is null) return;
 
-            if (newVersion is not null)
-            {
-                // ALWAYS keep the list here in service and the active convo IN SYNC
-                ChartStates.Add(newVersion);
-                ActiveConversation.ChartStates.Add(newVersion);
-                ActiveChartVersion = newVersion;
-            }
-
-            Notify();
-           
-        }
-
-        // timeout, cancel
-        // preserve
-        public void FailStreaming()
-        {
-            IsStreaming = false;
-            //if(!string.IsNullOrWhiteSpace())
-            Notify();
-        }
-
-        public void SetActiveVersion(ChartState version)
-        {
-            ActiveChartVersion = version;
-            Notify();
-        }
-
-        public void RenameConversation(int id, string newTitle)
-        {
-            var conversation = Conversations.FirstOrDefault(c => c.Id == id);
-
-            if (conversation is not null)
-            {
-                conversation.Title = newTitle;
-                Notify();
-            }
-        }
-        
+        conversation.Title = newTitle;
+        await _conversationService.RenameAsync(id, newTitle);
+        Notify();
     }
 }

@@ -1,8 +1,8 @@
 using ChartForge.Infrastructure.Data;
-using Microsoft.EntityFrameworkCore;
-using ChartForge.Web.Services;
 using ChartForge.Infrastructure.Services;
+using ChartForge.Web.Services;
 using ChartForge.Core.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,14 +23,22 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     )
 );
 
+builder.Services.AddScoped<IConversationService, ConversationService>();
+builder.Services.AddScoped<ChatStateService>();
+
 builder.Services.AddHttpClient<IChatStreamService, N8nChatStreamService>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["N8N:WebhookUrl"] ?? "http://localhost:5015");
 });
 
-builder.Services.AddScoped<ChatStateService>();
-
 var app = builder.Build();
+
+// Apply EF Core migrations automatically on startup.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 if (!app.Environment.IsDevelopment())
 {
@@ -46,8 +54,5 @@ app.UseAntiforgery();
 app.MapRazorComponents<ChartForge.Web.Components.App>()
     .AddInteractiveServerRenderMode();
 
-// loading the NotFound page should typically work without this as long as we have the MapRazorComponents above
-// however, the middleware for IsDevelopment is basically intercepting that so we need to add this redirect
-// i also added the @page directive to the NotFound.razor page to make sure it can be accessed directly as well
 app.MapFallback(() => Results.Redirect("/not-found"));
 app.Run();

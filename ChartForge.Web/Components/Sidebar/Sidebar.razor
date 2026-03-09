@@ -88,9 +88,10 @@
     private bool _isCollapsed = false;
     private string _searchQuery = string.Empty;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         ChatState.OnChange += HandleStateChanged;
+        await ChatState.InitializeAsync();
     }
 
     private async void HandleStateChanged()
@@ -121,24 +122,13 @@
 
     private async Task HandleConversationSelected(Conversation conversation)
     {
-        ChatState.LoadConversation(conversation);
+        await ChatState.LoadConversationAsync(conversation);
         Nav.NavigateTo($"/c/{conversation.Id}", replace: true);
     }
 
     private async Task HandleRename((int Id, string NewTitle) args)
     {
-        @* var conversation = ChatState.Conversations.FirstOrDefault(c => c.Id == args.Id);
-
-        if (conversation is not null) {
-            conversation.Title = args.NewTitle;
-        } *@
-
-            // when editing data, it should be done in the service not in the frontend
-            // the service contains the current data displayed, so manipulate data in the service so that all components
-            // are in sync
-            ChatState.RenameConversation(args.Id, args.NewTitle);
-
-            // later: await ConversationService.RenameAsync(args.Id, args.NewTitle);
+        await ChatState.RenameConversationAsync(args.Id, args.NewTitle);
     }
 
     public void Dispose()

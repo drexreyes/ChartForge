@@ -8,6 +8,7 @@
 @using ChartForge.Core.Interfaces
 @using ChartForge.Core.Models
 @using ChartForge.Web.Components.Canvas
+@using ChartForge.Web.Services
 @using System.Text
 
 <div class="flex h-full w-full bg-white">
@@ -57,13 +58,12 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (ConversationId.HasValue)
+        if (ConversationId.HasValue && ChatState.ActiveConversation?.Id != ConversationId.Value)
         {
-            Conversation? conversation = ChatState.Conversations.FirstOrDefault(c => c.Id == ConversationId.Value);
-            if (conversation is not null && ChatState.ActiveConversation?.Id != conversation.Id)
-            {
-                ChatState.LoadConversation(conversation);
-            }
+            // Try from the cached list first; fall back to a direct DB load.
+            var conversation = ChatState.Conversations.FirstOrDefault(c => c.Id == ConversationId.Value)
+                ?? new Conversation { Id = ConversationId.Value };
+            await ChatState.LoadConversationAsync(conversation);
         }
     }
 
@@ -118,7 +118,7 @@
 
         if (ChatState.IsNewUnsavedConversation)
         {
-            ChatState.AddConversationToList(userPrompt);
+            await ChatState.AddConversationToListAsync(userPrompt);
         }
 
         @* make the payload *@
@@ -149,33 +149,8 @@
 
                 if (chunk.FinalChartCode is not null)
                 {
-                    fullCode = chunk.FinalChartCode;
+                    fullCode = MarkdownCodeExtractor.ExtractJavaScript(chunk.FinalChartCode);
 
-
-                    // extract the code
-                    int codeStartIndex = fullCode.IndexOf("```javascript");
-                    if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```js");
-                    if (codeStartIndex == -1) codeStartIndex = fullCode.IndexOf("```");
-
-                    if (codeStartIndex != -1)
-                    {
-                        int startOfActualCode = fullCode.IndexOf('\n', codeStartIndex);
-                        if (startOfActualCode == -1) startOfActualCode = codeStartIndex + 3; // Fallback if no newline
-                        else startOfActualCode += 1; // skip the newline itself
-
-                        int codeEndIndex = fullCode.IndexOf("```", startOfActualCode);
-
-                        if (codeEndIndex == -1)
-                        {
-                            fullCode = fullCode.Substring(startOfActualCode).Trim();
-                        }
-                        else
-                        {
-                            fullCode = fullCode.Substring(startOfActualCode, codeEndIndex - startOfActualCode).Trim();
-                        }
-                    }
-
-                    // add a new chart state for chart versioning
                     var newVersion = new ChartState
                     {
                         VersionNumber = conversation.ChartStates.Count + 1,
@@ -184,8 +159,7 @@
                         ConversationId = conversation.Id,
                         VersionLabel = $"Version {conversation.ChartStates.Count + 1}"
                     };
-                    ChatState.CompleteStreaming(newVersion);
-
+                    await ChatState.CompleteStreamingAsync(newVersion);
                 }
 
                 if (batchCount >= batchSize)
@@ -197,7 +171,7 @@
             }
             if (ChatState.IsStreaming)
             {
-                ChatState.CompleteStreaming(newVersion: null);
+                await ChatState.CompleteStreamingAsync(newVersion: null);
             }
         }
         catch (Exception ex)
