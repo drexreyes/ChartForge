@@ -153,7 +153,6 @@
 
                 if (chunk.AssistantChunk is not null)
                 {
-                    Console.WriteLine($"Assistant chunk has been added: {chunk.AssistantChunk} [END OF CHUNK ADDED]");
                     aiMsg.Append(chunk.AssistantChunk);
                     newAiMessage.Content = aiMsg.ToString();
                 }
@@ -200,6 +199,7 @@
             // strictly (e.g. text before <THOUGHT>), so we clean up here regardless.
             if (aiMsg.Length > 0)
             {
+                Console.WriteLine($"AI MSG: {aiMsg}");
                 var (cleanContent, extractedTitle, extractedData) = ThoughtBlockParser.Parse(aiMsg.ToString());
                 newAiMessage.Content = cleanContent;
 
@@ -221,6 +221,8 @@
                     };
                     await ChatState.CompleteStreamingAsync(newVersion: null, newDataVersion);
                 }
+
+                // implement sql here
             }
 
             if (ChatState.IsStreaming)
