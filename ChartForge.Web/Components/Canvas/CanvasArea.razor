@@ -81,8 +81,25 @@
             && chartModule is not null
             && !string.IsNullOrWhiteSpace(activeVersion.ChartSourceCode))
         {
+            var chartCode = activeVersion.ChartSourceCode;
+            var csv = ChatState.ActiveDataVersion?.RawData ?? "";
+
+            // Escaping the backticks just in case the csv has backticks
+            csv = csv.Replace("`", "\\`");
+
+            // inject the raw data 
+            if (chartCode.Contains("__CHARTFORGE_DATA__")) {
+                chartCode = chartCode.Replace(
+                    "__CHARTFORGE_DATA__",
+                    $"`{csv}`"
+                );
+            }
+
+            Console.WriteLine($"[INJECT CODE]: {chartCode}");
+
+
             lastRenderedVersionNumber = activeVersion.VersionNumber;
-            var result = await chartModule.InvokeAsync<string>("renderChart", activeVersion.ChartSourceCode);
+            var result = await chartModule.InvokeAsync<string>("renderChart", chartCode);
             if (result != "Success")
                 Console.Error.WriteLine($"Error rendering chart: {result}");
         }

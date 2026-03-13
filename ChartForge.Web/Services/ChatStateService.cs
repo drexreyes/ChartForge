@@ -134,20 +134,6 @@ public class ChatStateService
             msg.ConversationId = realId;
         }
 
-        var csvPath = Path.Combine(AppContext.BaseDirectory, "SeedData", "102heatmaps.csv");
-        if (File.Exists(csvPath))
-        {
-            var seedData = new DataState
-            {
-                VersionNumber = 1,
-                RawData = await File.ReadAllTextAsync(csvPath),
-                CreatedAtUtc = DateTime.UtcNow,
-                ConversationId = realId,
-            };
-            await _conversationService.AddDataStateAsync(seedData);
-            DataStates = new List<DataState> { seedData };
-            ActiveDataVersion = seedData;
-        }
 
         Conversations.Insert(0, ActiveConversation);
         IsNewUnsavedConversation = false;
@@ -170,9 +156,12 @@ public class ChatStateService
     {
         IsStreaming = false;
 
-        foreach (var msg in _pendingMessages)
-            await _conversationService.AddMessageAsync(msg);
-        _pendingMessages.Clear();
+        if (newVersion is null && newDataVersion is null)
+        {
+            foreach (var msg in _pendingMessages)
+                await _conversationService.AddMessageAsync(msg);
+            _pendingMessages.Clear();
+        }
 
         if (newVersion is not null)
         {

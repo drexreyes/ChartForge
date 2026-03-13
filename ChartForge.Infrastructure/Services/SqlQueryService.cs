@@ -73,7 +73,7 @@ public class SqlQueryService : ISqlQueryService
 
         foreach (var table in rows.GroupBy(r => r.Table))
         {
-            sb.AppendLine($"Table: [{table.Key}]");
+            sb.AppendLine($"TableName: [{table.Key}]");
             foreach (var col in table)
                 sb.AppendLine($"  - [{col.Column}] ({col.Type})");
         }

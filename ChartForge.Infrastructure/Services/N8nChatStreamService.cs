@@ -30,7 +30,7 @@ public class N8nChatStreamService : IChatStreamService
             chatInput = chatRequest.UserPrompt,
             currentCode = chatRequest.CurrentChartCode,
             chatHistory = chatRequest.History,
-            dataSchema = chatRequest.CurrentData ?? "",
+            csvPreview = chatRequest.CurrentData ?? "",
             dbSchema = chatRequest.DataSchema ?? ""
         };
 
@@ -75,7 +75,8 @@ public class N8nChatStreamService : IChatStreamService
             if (chunk == "[DONE]")
                 break;
 
-            Console.WriteLine("RAW: " + chunk);
+            // only enable for testing
+            // Console.WriteLine("RAW: " + chunk);
 
             if (TryParseJsonDocument(chunk, out var doc))
             {
@@ -110,9 +111,9 @@ public class N8nChatStreamService : IChatStreamService
         if (!state.OutputThoughtClosed && state.ThoughtBuffer.Length > 0)
         {
             var raw = state.ThoughtBuffer.ToString();
-            int thoughtEnd = raw.IndexOf("</THOUGHT>", StringComparison.OrdinalIgnoreCase);
+            int thoughtEnd = raw.IndexOf(CLOSING_THOUGHT_TAG, StringComparison.OrdinalIgnoreCase);
             var fallback = thoughtEnd >= 0
-                ? raw[(thoughtEnd + "</THOUGHT>".Length)..].TrimStart('\n', '\r')
+                ? raw[(thoughtEnd + CLOSING_THOUGHT_TAG.Length)..].TrimStart('\n', '\r')
                 : raw;
             if (!string.IsNullOrEmpty(fallback))
                 yield return new StreamResult { AssistantChunk = fallback };
@@ -136,7 +137,6 @@ public class N8nChatStreamService : IChatStreamService
 
     private static IEnumerable<StreamResult> ParseAndProcess(string text, StreamParseState state)
     {
-        Console.WriteLine($"Parse and processing");
         if (!TryParseJsonDocument(text, out var doc))
             yield break;
 
@@ -199,7 +199,7 @@ public class N8nChatStreamService : IChatStreamService
                             state.ThoughtBuffer.Append(contentStr);
                             buffered = state.ThoughtBuffer.ToString();
 
-                            thoughtEnd = buffered.IndexOf("</THOUGHT>", StringComparison.OrdinalIgnoreCase);
+                            thoughtEnd = buffered.IndexOf(CLOSING_THOUGHT_TAG, StringComparison.OrdinalIgnoreCase);
                             if (thoughtEnd < 0)
                                 continue; // Still buffering — keep going.
 
@@ -232,13 +232,13 @@ public class N8nChatStreamService : IChatStreamService
                         state.OutputBuffer.Append(contentStr);
                         var buffered = state.OutputBuffer.ToString().TrimStart();
 
-                        if (buffered.StartsWith("<THOUGHT>", StringComparison.OrdinalIgnoreCase))
+                        if (buffered.StartsWith(OPENING_THOUGHT_TAG, StringComparison.OrdinalIgnoreCase))
                         {
                             // OutputNode also has a thought block — buffer until it closes.
-                            int thoughtEnd = buffered.IndexOf("</THOUGHT>", StringComparison.OrdinalIgnoreCase);
+                            int thoughtEnd = buffered.IndexOf(CLOSING_THOUGHT_TAG, StringComparison.OrdinalIgnoreCase);
                             if (thoughtEnd < 0) continue;
 
-                            var afterThought = buffered[(thoughtEnd + "</THOUGHT>".Length)..].TrimStart('\n', '\r');
+                            var afterThought = buffered[(thoughtEnd + CLOSING_THOUGHT_TAG.Length)..].TrimStart('\n', '\r');
 
                             // After thought, SQL may follow — keep buffering until we know.
                             if (afterThought.Length == 0)
@@ -356,27 +356,78 @@ public class N8nChatStreamService : IChatStreamService
     private static IEnumerable<StreamResult> FilterCodeBlocks(string text, StreamParseState state)
     {
         const string fence = "```";
+        const string startingHtmlTag = "<!DOCTYPE html>";
+        const string endingHtmlTag = "</html>";
         int pos = 0;
-
-        while (pos <= text.Length)
+        
+        if (text.IndexOf(startingHtmlTag, StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            int fenceIdx = text.IndexOf(fence, pos, StringComparison.Ordinal);
 
-            if (fenceIdx < 0)
+            while (pos < text.Length)
             {
-                // No more fences — yield the remainder if outside a code block.
-                if (!state.IsInsideCodeBlock && pos < text.Length)
-                    yield return new StreamResult { AssistantChunk = text[pos..] };
-                break;
+                if (!state.IsInsideCodeBlock)
+                {
+                    int startIdx = text.IndexOf(startingHtmlTag, pos, StringComparison.OrdinalIgnoreCase);
+
+                    if (startIdx < 0)
+                    {
+                        yield return new StreamResult { AssistantChunk = text[pos..] };
+                        yield break;
+                    }
+
+                    if (startIdx > pos)
+                    {
+                        yield return new StreamResult { AssistantChunk = text[pos..startIdx] };
+                    }
+
+                    state.IsInsideCodeBlock = true;
+                    pos = startIdx;
+                }
+                else
+                {
+                    int endIdx = text.IndexOf(endingHtmlTag, pos, StringComparison.OrdinalIgnoreCase);
+
+                    if (endIdx < 0)
+                    {
+                        yield break;
+                    }
+
+                    int htmlEnd = endIdx + endingHtmlTag.Length;
+
+                    yield return new StreamResult
+                    {
+                        FinalChartCode = text[pos..htmlEnd]
+                    };
+
+                    state.IsInsideCodeBlock = false;
+                    pos = htmlEnd;
+                }
             }
 
-            // Yield text before the fence if outside a code block.
-            if (!state.IsInsideCodeBlock && fenceIdx > pos)
-                yield return new StreamResult { AssistantChunk = text[pos..fenceIdx] };
+        } 
+        else
+        {
+            while (pos <= text.Length)
+            {
+                int fenceIdx = text.IndexOf(fence, pos, StringComparison.Ordinal);
 
-            state.IsInsideCodeBlock = !state.IsInsideCodeBlock;
-            pos = fenceIdx + fence.Length;
+                if (fenceIdx < 0)
+                {
+                    // No more fences — yield the remainder if outside a code block.
+                    if (!state.IsInsideCodeBlock && pos < text.Length)
+                        yield return new StreamResult { AssistantChunk = text[pos..] };
+                    break;
+                }
+
+                // Yield text before the fence if outside a code block.
+                if (!state.IsInsideCodeBlock && fenceIdx > pos)
+                    yield return new StreamResult { AssistantChunk = text[pos..fenceIdx] };
+
+                state.IsInsideCodeBlock = !state.IsInsideCodeBlock;
+                pos = fenceIdx + fence.Length;
+            }
         }
+
     }
 
     private static WorkflowNodeType MapNodeName(string nodeName) =>
